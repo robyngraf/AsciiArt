@@ -1,0 +1,150 @@
+﻿<#@ template debug="false" hostspecific="false" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ Assembly Name="$(SolutionDir)ConsoleEncoder\bin\Debug\net6.0-windows\ConsoleEncoder.dll" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="ConsoleEncoder" #>
+<#@ output extension=".cs" #>
+<#
+List<int[]> masks = File.ReadAllLines($@"D:\Temp\Masks.txt").Select(line =>
+    {
+        var p = line
+        .Split(',')
+        .Select(int.Parse)
+        .ToArray();
+        return new[]{p[0], p[1], p[2], p[3]};
+    }).ToList();
+    
+int accuracy = 8;
+#>
+using ConsoleEncoder;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+
+var filename = "moon.png";
+
+var nodes = Helper.ReadUInt16FromFile($@"D:\Temp\nodes.data").ToArray();
+using var fontImage = Image.Load<Rgba32>($@"D:\Temp\compressedfont.png");
+using var sourceImage = Image.Load<Rgba32>(@$"D:\Temp\{filename}");
+var width = sourceImage.Width / 7 * 7;
+var height = sourceImage.Height / 8 * 8;
+using var destinationImage = new Image<Rgba32>(width, height);
+
+for (int y = 0; y < height - 7; y += 8)
+{
+    for (int x = 0; x < width - 6; x += 7)
+    {
+<#
+for(int i = 0; i < masks.Count; i++)
+{
+#>
+        float count<#= i #> = 0; // Region <#= i #>: X = <#= masks[i][0] #>, Y = <#= masks[i][1] #>, Width = <#= masks[i][2] #>, Height = <#= masks[i][3] #>, Size = <#= masks[i][2] * masks[i][3] #>
+<#
+}
+#>
+        float brightness;
+<#
+for (int y1 = 0; y1 < 8; y1++)
+{
+    for (int x1 = 0; x1 < 7; x1++)
+    {
+        var masksUsedForThisPixel = new List<int>();
+        for(int i = 0; i < masks.Count; i++)
+        {
+            var mask = masks[i];
+            if (x1 >= mask[0] && x1 < mask[0] + mask[2] && y1 >= mask[1] && y1 < mask[1] + mask[3])
+            {
+                masksUsedForThisPixel.Add(i);
+            }
+        }
+        if(masksUsedForThisPixel.Count > 0)
+        {
+#>
+        brightness = sourceImage[x<#= x1 == 0 ? "" : " + " + x1 #>, y<#= y1 == 0 ? "" : " + " + y1 #>].GetLinearBrightness();
+<#
+            foreach (int i in masksUsedForThisPixel)
+            {
+#>
+        count<#= i #> += brightness; // Pixel <#= x1 #>, <#= y1 #> is in region <#= i #>.
+<#
+            }
+        }
+    }
+}
+
+var midpoint = accuracy / 2 + accuracy % 2;
+var bitmask = 1;
+
+//for(int i = 0; i < 3; i++)
+while (bitmask < (accuracy - 1))
+    bitmask = (bitmask << 1) | 1;
+
+int subtrahend = bitmask - accuracy + 1;
+
+for(int i = 0; i < masks.Count; i++)
+{
+    var mask = masks[i];
+    var total = mask[2] * mask[3];
+    if (i == 0)
+    {
+#>
+
+        int weight = (int)((count<#= i #> - 1) * <#= (accuracy - 2) #>f / <#= (float)(total - 1) #>f + 1);
+        int flipImage = weight / <#= midpoint #>;
+        int xor = flipImage * <#= bitmask #>;
+<#
+        if (subtrahend > 1)
+        {
+#>
+        int subtrahend = flipImage * <#= subtrahend #>;
+<#
+        }
+        else if (subtrahend == 1)
+        {
+#>
+        int subtrahend = flipImage;
+<#
+        }
+#>
+        weight ^= xor;
+<#
+        if (subtrahend > 0)
+        {
+#>
+        weight -= subtrahend;
+<#
+        }
+#>
+        int nodeIndex = nodes[weight];
+<#
+    }
+    else
+    {
+#>
+        weight = (int)((count<#= i #> - 1) * <#= (accuracy - 2) #>f / <#= (float)(total - 1) #>f + 1);
+        weight ^= xor;
+<#
+        if (subtrahend > 0)
+        {
+#>
+        weight -= subtrahend;
+<#
+        }
+#>
+        nodeIndex = nodes[nodeIndex * <#= accuracy #> + weight];
+<#
+    }
+}
+#>
+        var location = new Point(x, y);
+        var pos = nodeIndex * 8;
+        var sourceX = pos % fontImage.Width;
+        var sourceY = pos / fontImage.Width * 8;
+        var sourceLocation = new Point(sourceX, sourceY);
+        destinationImage.DrawImage7By8(fontImage, location, sourceLocation, flipImage > 0);
+    }
+}
+    
+destinationImage.Save(@$"D:\Temp\ascii fast {Path.GetFileName(filename)}");

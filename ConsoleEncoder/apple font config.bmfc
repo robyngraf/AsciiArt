@@ -1,0 +1,63 @@
+# AngelCode Bitmap Font Generator configuration file
+fileVersion=1
+
+# font settings
+fontName=Print Char 21
+fontFile=
+charSet=0
+fontSize=-8
+aa=1
+scaleH=100
+useSmoothing=0
+isBold=0
+isItalic=0
+useUnicode=1
+disableBoxChars=1
+outputInvalidCharGlyph=0
+dontIncludeKerningPairs=1
+useHinting=1
+renderFromOutline=0
+useClearType=1
+autoFitNumPages=0
+autoFitFontSizeMin=0
+autoFitFontSizeMax=0
+
+# character alignment
+paddingDown=0
+paddingUp=0
+paddingRight=0
+paddingLeft=0
+spacingHoriz=1
+spacingVert=0
+useFixedHeight=1
+forceZero=1
+widthPaddingFactor=0.00
+
+# output file
+outWidth=256
+outHeight=256
+outBitDepth=8
+fontDescFormat=1
+fourChnlPacked=0
+textureFormat=png
+textureCompression=0
+alphaChnl=0
+redChnl=4
+greenChnl=4
+blueChnl=4
+invA=0
+invR=0
+invG=0
+invB=0
+
+# outline
+outlineThickness=0
+
+# selected chars
+chars=32-127,160-255,305,321-322,338-339,352-353,376,381-382,402,550-551,567,710-715,722-733,916,937,956
+chars=960,8208-8231,8240-8241,8249-8250,8252-8253,8260,8364,8471,8480,8482,8486-8487,8592-8595,8626,8629
+chars=8706,8710-8711,8719-8722,8725,8730-8734,8747-8749,8776-8777,8800-8805,8984,8987,8997,9135,9144-9149
+chars=9166,9168,9203,9253,9472-9621,9670-9672,9674,9825-9826,9829-9830,10003,127822-127823,129896-129940
+chars=129943,129946-129994,130032-130041
+
+# imported icon images
