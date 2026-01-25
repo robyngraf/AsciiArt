@@ -1,14 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using System.Text;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using SixLabors.ImageSharp.Processing.Processors.Drawing;
 
 namespace ConsoleEncoder
 {
@@ -135,11 +130,8 @@ namespace ConsoleEncoder
                 for (int i = 0; i < height; i++)
                 {
                     var sourceRow = sourceAccessor
-                        .GetRowSpan(sourceRectangle.Y + i)
-                        .Slice(sourceRectangle.X, sourceRectangle.Width);
-                    var destRow = destAccessor
-                        .GetRowSpan(destLocation.Y + i)
-                        .Slice(destLocation.X);
+                        .GetRowSpan(sourceRectangle.Y + i)[sourceRectangle.X .. sourceRectangle.Width];
+                    var destRow = destAccessor.GetRowSpan(destLocation.Y + i)[destLocation.X..];
 
                     sourceRow.CopyTo(destRow);
                 }

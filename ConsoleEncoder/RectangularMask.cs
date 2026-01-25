@@ -1,19 +1,13 @@
-﻿namespace ConsoleEncoder
-{
-    public class RectangularMask : IMask
-    {
-        public RectangularMask(int x, int y, int width, int height)
-        {
-            X = x;
-            Y = y;
-            Width = width;
-            Height = height;
-        }
+﻿using System.Threading.Tasks;
 
-        public int X { get; }
-        public int Y { get; }
-        public int Width { get; }
-        public int Height { get; }
+namespace ConsoleEncoder
+{
+    public class RectangularMask(int x, int y, int width, int height) : IMask
+    {
+        public int X { get; } = x;
+        public int Y { get; } = y;
+        public int Width { get; } = width;
+        public int Height { get; } = height;
 
         public int Total => Width * Height;
 
@@ -21,5 +15,7 @@
         {
             return x >= X && y >= Y && x < X + Width && y < Y + Height;
         }
+
+        public override string ToString() => $"{X},{Y},{Width},{Height}";
     }
 }

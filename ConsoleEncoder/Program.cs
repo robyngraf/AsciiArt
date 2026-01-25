@@ -8,15 +8,15 @@ using SixLabors.ImageSharp.Formats.Gif;
 using SixLabors.ImageSharp.Formats.Png;
 using System.Diagnostics;
 
-var filename = "troll dentist.png";
+var filename = "troll dentist apple.png";
 Console.WriteLine("Hello, World!");
 bool generateMaskImages = false;
 bool generateMasks = true;
 bool generateData = generateMasks || true;
 bool useBaseMask = true;
 
-const int accuracy = 8;
-const int noMasks = 8;
+const int accuracy = 10;
+const int noMasks = 10;
 
 Debug.Assert(GetScore(20, 0) == 0);
 Debug.Assert(GetScore(20, 1) == 1);
@@ -25,19 +25,19 @@ Debug.Assert(GetScore(20, 19) == accuracy - 2);
 var a = GetScore(20, 10);
 Debug.Assert(GetScore(20, 10) == (accuracy - 1) / 2);
 
-List<Task> tasks = new();
+List<Task> tasks = [];
 
-List<IMask>? masks = null;
+List<IMask> masks = [];
 if (!generateMasks)
 {
-    masks = File.ReadAllLines($@"D:\Temp\Masks.txt").Select(line =>
+    masks = [.. File.ReadAllLines($@"D:\Temp\Masks.txt").Select(line =>
     {
         var p = line
         .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .Select(int.Parse)
         .ToArray();
         return new RectangularMask(p[0], p[1], p[2], p[3]);
-    }).ToList<IMask>();
+    })];
 }
 
 if (generateMasks || generateData)
@@ -181,6 +181,10 @@ if (generateMasks || generateData)
             {
                 var codepoint = pair.Key;
                 var charImage = pair.Value;
+                if (charImage.Width != 7)
+                {
+                    continue;
+                }
                 lock (charImage)
                 {
                     var weights = new int[noMasks];
@@ -210,13 +214,13 @@ if (generateMasks || generateData)
                 var coverage = thread.maskSelection.Sum(m => m.Total);
                 if (coverage > thread.bestCoverage)
                 {
-                    thread.bestMaskSelection = new List<IMask>(thread.maskSelection);
+                    thread.bestMaskSelection = [.. thread.maskSelection];
                     thread.bestCoverage = coverage;
                 }
             }
             if (thread.fingerprints.Count > thread.bestSelectionCount)
             {
-                thread.bestMaskSelection = new List<IMask>(thread.maskSelection);
+                thread.bestMaskSelection = [.. thread.maskSelection];
                 thread.bestSelectionCount = thread.fingerprints.Count;
                 if (thread.bestSelectionCount == characterImages.Count)
                     state.Break();
@@ -238,8 +242,9 @@ if (generateMasks || generateData)
         Console.WriteLine("Optimised masks");
 
         masks = bestMaskSelection;
+        Debug.Assert(masks != null);
 
-        tasks.Add(File.WriteAllLinesAsync($@"D:\Temp\Masks.txt", masks.Cast<RectangularMask>().Select(mask => $"{mask.X},{mask.Y},{mask.Width},{mask.Height}").ToArray()));
+        tasks.Add(File.WriteAllLinesAsync($@"D:\Temp\Masks.txt", masks.Select(mask => mask.ToString() ?? "mask")));
     }
 
 
@@ -255,6 +260,10 @@ if (generateMasks || generateData)
             var codepoint = pair.Key;
             var charImage = pair.Value;
 
+            if (charImage.Width != 7)
+            {
+                continue;
+            }
             var weights = new int[noMasks];
             for (int i = 0; i < noMasks; i++)
             {
@@ -309,7 +318,7 @@ if (generateMasks || generateData)
             {
                 var fingerprint = pair.Key;
                 var codePoints = pair.Value;
-                tree[fingerprint.ToArray()] = codePoints[0];
+                tree[[.. fingerprint]] = codePoints[0];
             }
 
             // trim solitary branches
@@ -330,7 +339,7 @@ if (generateMasks || generateData)
             var nodeIndexes = new Dictionary<Tree<int, int>, int>();
             var nodes = tree.AllNodes().ToArray();
             var rootNode = nodes[0];
-            nodes = nodes.OrderByDescending(n => n == rootNode).ThenByDescending(n => n.HasValue).ToArray();
+            nodes = [.. nodes.OrderByDescending(n => n == rootNode).ThenByDescending(n => n.HasValue)];
             for (int i = 0; i < nodes.Length; i++)
                 nodeIndexes.Add(nodes[i], i);
 
@@ -356,7 +365,7 @@ if (generateMasks || generateData)
 
                 nodeData.WriteToFile($@"D:\Temp\nodes.data");
 
-                nodeData = nodeData.Select(n => (ushort)(n * accuracy)).ToArray();
+                nodeData = [.. nodeData.Select(n => (ushort)(n * accuracy))];
                 int sauceSize = 128;
                 using var secretSauceImage = new Image<Rgba32>(sauceSize, sauceSize);
                 for (int i = 0; i < nodeData.Length; i++)
@@ -381,7 +390,7 @@ if (generateMasks || generateData)
                 do
                 {
                     shrunk = false;
-                    Dictionary<int, ushort> sequenceLocationsByHash = new();
+                    Dictionary<int, ushort> sequenceLocationsByHash = [];
                     for (ushort i = 0; i < nodeData.Length - accuracy + 1; i++)
                     {
                         var h = new HashCode();
@@ -403,9 +412,9 @@ if (generateMasks || generateData)
                         }
                     }
 
-                    HashSet<ushort> referredLocations = new(nodeData) { 0 };
-                    List<ushort> newNodeData = new();
-                    List<ushort> removedNodes = new();
+                    HashSet<ushort> referredLocations = [.. nodeData, 0];
+                    List<ushort> newNodeData = [];
+                    List<ushort> removedNodes = [];
                     for (ushort i = 0; i < nodeData.Length - accuracy + 1; i++)
                     {
                         if (referredLocations.Contains(i))
@@ -424,10 +433,9 @@ if (generateMasks || generateData)
                     }
                     if (shrunk)
                     {
-                        nodeData = newNodeData
+                        nodeData = [.. newNodeData
                             .Select(n => n - removedNodes.Where(x => x < n).Count())
-                            .Select(n => (ushort)n)
-                            .ToArray();
+                            .Select(n => (ushort)n)];
                     }
 
                 } while(shrunk);
@@ -447,11 +455,12 @@ if (generateMasks || generateData)
                 tasks.Add(secretSauceImage2.SaveAsPngAsync($@"D:\Temp\secretsauce2.png", enc));
 
 
-
+                /*
                 nodes
                     .SelectMany(node => Enumerable.Range(0, accuracy)
                     .Select(i => nodeIndexes[node[i]]))
                     .Select(i => checked((ushort)i));
+                */
 
                 var codePoints = nodes
                     .TakeWhile((node, i) => i == 0 || node.HasValue)
@@ -496,14 +505,13 @@ if (generateMasks || generateData)
             var otherNodes = nodes.Where(n => !n.HasValue).Reverse().ToArray();
 
 
-            const int sauceSize = 64;
+            const int sauceSize = 128;
             using var secretSauceImage = new Image<Rgba32>(sauceSize, sauceSize, new Rgba32(0xFF_FFAACC));
 
             secretSauceImage[0, 0] = new Rgba32(0xFF_FF0000);
 
             var sequences = new Dictionary<Fingerprint<int>, int>();
-            var values = new List<int>();
-            values.Add(0xFF0000);
+            var values = new List<int> { 0xFF0000 };
 
             for (int i = 0; i < valueNodes.Length; i++)
             {
@@ -519,15 +527,15 @@ if (generateMasks || generateData)
                 if (nodeIndexes.ContainsKey(node))
                     continue;
                 var location = values.Count;
-                List<int> sequence = new();
+                List<int> sequence = [];
                 for (int i = 0; i < accuracy; i++)
                     sequence.Add(nodeIndexes[node[i]]);
                 Debug.Assert(sequence.All(x => x >= 0));
                 var fingerprint = new Fingerprint<int>(sequence);
-                if (sequences.ContainsKey(fingerprint))
+                if (sequences.TryGetValue(fingerprint, out int value))
                 {
                     shrinkage += accuracy;
-                    nodeIndexes[node] = sequences[fingerprint];
+                    nodeIndexes[node] = value;
                     continue;
                 }
                 
@@ -555,8 +563,7 @@ if (generateMasks || generateData)
                     for (int j = 0; j < accuracy; j++)
                         adjacentSequence[j] = i - adjacentSequence[j];
                     var f = new Fingerprint<int>(adjacentSequence);
-                    if(!sequences.ContainsKey(f))
-                        sequences.Add(f, i);
+                    sequences.TryAdd(f, i);
                 }
             }
             values[0] = nodeIndexes[rootNode];
@@ -661,7 +668,7 @@ if (generateMaskImages)
                         weight = accuracy - 1 - weight;
 
                     nodeIndex = nodes[nodeIndex * accuracy + weight];
-                    nodeIndex2 = nodeIndex2 - GetNextAddressFromSauce(nodeIndex2 + weight);
+                    nodeIndex2 -= GetNextAddressFromSauce(nodeIndex2 + weight);
                 }
                 Debug.Assert(nodeIndex == nodeIndex2);
                 var destLocation = new Point(imageX, imageY);

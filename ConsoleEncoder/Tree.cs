@@ -11,8 +11,7 @@ namespace ConsoleEncoder
         {
             get
             {
-                if (keys == null)
-                    throw new ArgumentNullException(nameof(keys));
+                ArgumentNullException.ThrowIfNull(keys);
 
                 if (keys.Length == 0)
                     return Value;
@@ -24,8 +23,7 @@ namespace ConsoleEncoder
             }
             set
             {
-                if (keys == null)
-                    throw new ArgumentNullException(nameof(keys));
+                ArgumentNullException.ThrowIfNull(keys);
 
                 if (keys.Length == 0)
                     Value = value;

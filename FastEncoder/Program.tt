@@ -1,6 +1,6 @@
 ﻿<#@ template debug="false" hostspecific="false" language="C#" #>
 <#@ assembly name="System.Core" #>
-<#@ Assembly Name="$(SolutionDir)ConsoleEncoder\bin\Debug\net6.0-windows\ConsoleEncoder.dll" #>
+<#@ Assembly Name="$(SolutionDir)ConsoleEncoder\bin\Debug\net9.0-windows7.0\ConsoleEncoder.dll" #>
 <#@ import namespace="System.Linq" #>
 <#@ import namespace="System.Text" #>
 <#@ import namespace="System.IO" #>

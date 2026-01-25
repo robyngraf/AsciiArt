@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections;
 using System.Collections.Immutable;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ConsoleEncoder
 {
@@ -12,8 +7,8 @@ namespace ConsoleEncoder
     {
         public Fingerprint(IEnumerable<T> values)
         {
-            _values = values.ToImmutableArray();
-            _hash = GenerateHashCode(_values);
+            _values = [.. values];
+            _hash = GenerateHashCode();
         }
 
         private readonly ImmutableArray<T> _values;
@@ -22,7 +17,7 @@ namespace ConsoleEncoder
 
         public override string ToString() => $"[{string.Join(", ", _values)}]";
 
-        private int GenerateHashCode(ICollection<T> values) => ((IStructuralEquatable)_values).GetHashCode(EqualityComparer<T>.Default);
+        private int GenerateHashCode() => ((IStructuralEquatable)_values).GetHashCode(EqualityComparer<T>.Default);
 
         public override int GetHashCode() => _hash;
 
