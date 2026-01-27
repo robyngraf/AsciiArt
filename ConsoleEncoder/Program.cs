@@ -8,14 +8,14 @@ using SixLabors.ImageSharp.Formats.Gif;
 using SixLabors.ImageSharp.Formats.Png;
 using System.Diagnostics;
 
-var filename = "troll dentist apple.png";
+var filename = "moon.png";
 Console.WriteLine("Hello, World!");
 bool generateMaskImages = false;
-bool generateMasks = true;
+bool generateMasks = false;
 bool generateData = generateMasks || true;
 bool useBaseMask = true;
 
-const int accuracy = 10;
+const int accuracy = 14; // Must be <= the number of pixels in the smallest mask
 const int noMasks = 10;
 
 Debug.Assert(GetScore(20, 0) == 0);
@@ -59,6 +59,7 @@ if (generateMasks || generateData)
             var width = (int)node.Attribute("width");
             var height = (int)node.Attribute("height");
 #pragma warning restore CS8604 // Possible null reference argument.
+            if (width != 7 || height != 8) continue;
             var rect = new Rectangle(characterX, characterY, width, height);
             var charImage = fontImage.Clone(i => i.Crop(rect));
             var charImageInverted = charImage.Clone(i => i.Invert());
@@ -93,7 +94,9 @@ if (generateMasks || generateData)
         new RectangularMask(0, 0, 3, 3),
         new RectangularMask(4, 0, 3, 3),
         new RectangularMask(0, 5, 3, 3),
-        new RectangularMask(4, 5, 3, 3)
+        new RectangularMask(4, 5, 3, 3),
+        new RectangularMask(0, 4, 7, 2),
+        new RectangularMask(4, 8, 2, 8)
     }.OrderByDescending(m => m.Total)
         .ToList();
         if (!useBaseMask)
@@ -463,38 +466,57 @@ if (generateMasks || generateData)
                 */
 
                 var codePoints = nodes
-                    .TakeWhile((node, i) => i == 0 || node.HasValue)
+                    .Where((node, i) => i == 0 || node.HasValue)
                     .Select(node => node.Value)
                     .ToList();
 
                 codePoints.WriteToFile($@"D:\Temp\codepoints.data");
 
 
+                {
+                    var size = 512;
+                    var newFontImage = new Image<Rgba32>(size, size);
+                    {
+                        var images = codePoints.Skip(1).Select(codepoint => characterImagesByCodepoint[codepoint]).ToList();
+                        for (int i = 0; i < images.Count; i++)
+                        {
+                            var pos = (i + 1) * 8;
+                            var x = pos % size;
+                            var y = pos / size * 8;
+                            newFontImage.Mutate(c => c.DrawImage(images[i], new Point(x, y), 1f));
+                        }
+                    }
+                    {
+                        var images = codePoints.Skip(1).Select(codepoint => characterImagesByCodepointInverted[codepoint]).ToList();
+                        for (int i = 0; i < images.Count; i++)
+                        {
+                            var pos = (i + 1) * 8;
+                            var x = pos % size;
+                            var y = pos / size * 8 + size / 2;
+                            newFontImage.Mutate(c => c.DrawImage(images[i], new Point(x, y), 1f));
+                        }
+                    }
+                    tasks.Add(newFontImage.SaveAs1BitPngAsync($@"D:\Temp\compressedfont.png"));
+                }
 
-                var size = 256;
-                var newFontImage = new Image<Rgba32>(size, size);
                 {
-                    var images = codePoints.Skip(1).Select(codepoint => characterImagesByCodepoint[codepoint]).ToList();
-                    for (int i = 0; i < images.Count; i++)
+                    var size = 256;
+                    var newFontImage = new Image<Rgba32>(size, size);
+                    var codepoints2 = characterImagesByCodepoint.Keys.Order().ToList();
                     {
-                        var pos = (i + 1) * 8;
-                        var x = pos % size;
-                        var y = pos / size * 8;
-                        newFontImage.Mutate(c => c.DrawImage(images[i], new Point(x, y), 1f));
+                        var images = codepoints2.Select(codepoint => characterImagesByCodepoint[codepoint]).ToList();
+                        for (int i = 0; i < images.Count; i++)
+                        {
+                            var pos = (i + 1) * 8;
+                            var x = pos % size;
+                            var y = pos / size * 8;
+                            newFontImage.Mutate(c => c.DrawImage(images[i], new Point(x, y), 1f));
+                        }
                     }
+                    tasks.Add(newFontImage.SaveAs1BitPngAsync($@"D:\Temp\compressedfont full.png"));
+                    codepoints2.Prepend(0).WriteToFile($@"D:\Temp\codepoints full.data");
+                    codepoints2.Prepend(0).Select(c=> Encoding.UTF8.GetBytes(char.ConvertFromUtf32(c))).SelectMany(x=>x).WriteToFile($@"D:\Temp\codepoints full2.data");
                 }
-                {
-                    var images = codePoints.Skip(1).Select(codepoint => characterImagesByCodepointInverted[codepoint]).ToList();
-                    for (int i = 0; i < images.Count; i++)
-                    {
-                        var pos = (i + 1) * 8;
-                        var x = pos % size;
-                        var y = pos / size * 8 + size / 2;
-                        newFontImage.Mutate(c => c.DrawImage(images[i], new Point(x, y), 1f));
-                    }
-                }
-                tasks.Add(newFontImage.SaveAsync($@"D:\Temp\compressedfont debug.png"));
-                tasks.Add(newFontImage.SaveAs1BitPngAsync($@"D:\Temp\compressedfont.png"));
             }
         }
         {

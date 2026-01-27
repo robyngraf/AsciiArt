@@ -33,10 +33,17 @@ namespace ConsoleEncoder
             var hash = new HashCode();
             for (int y = 0; y < height; y++)
                 for (int x = 0; x < width; x++)
-                    hash.Add(image[x, y].PackedValue);
+                    hash.Add(image[x, y].PackedValue ^ (x + y * width));
             return hash.ToHashCode();
         }
 
+        public static void WriteToFile(this IEnumerable<byte> values, string path)
+        {
+            using var stream = File.Create(path);
+            using BinaryWriter bw = new(stream);
+            foreach (var number in values)
+                bw.Write(number);
+        }
         public static void WriteToFile(this IEnumerable<int> values, string path)
         {
             using var stream = File.Create(path);
