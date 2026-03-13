@@ -37,6 +37,13 @@ namespace ConsoleEncoder
             return hash.ToHashCode();
         }
 
+        public static void WriteToFile(this IEnumerable<string> values, string path)
+        {
+            using var stream = File.Create(path);
+            using StreamWriter writer = new(stream);
+            foreach (var s in values)
+                writer.WriteLine(s);
+        }
         public static void WriteToFile(this IEnumerable<byte> values, string path)
         {
             using var stream = File.Create(path);

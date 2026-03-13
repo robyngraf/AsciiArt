@@ -515,7 +515,7 @@ if (generateMasks || generateData)
                     }
                     tasks.Add(newFontImage.SaveAs1BitPngAsync($@"D:\Temp\compressedfont full.png"));
                     codepoints2.Prepend(0).WriteToFile($@"D:\Temp\codepoints full.data");
-                    codepoints2.Prepend(0).Select(c=> Encoding.UTF8.GetBytes(char.ConvertFromUtf32(c))).SelectMany(x=>x).WriteToFile($@"D:\Temp\codepoints full2.data");
+                    codepoints2.Prepend(0).Select((c, i)=> "\"" + Char.ConvertFromUtf32(c) + "\": " + i + ",").WriteToFile($@"D:\Temp\codepoints full2.data");
                 }
             }
         }
