@@ -339,6 +339,7 @@ if (generateMasks || generateData)
         }
 
         var tree = new Tree<int, int>();
+        if (generateSauce)
         {
             // put values in tree
             foreach (var pair in codepointsByVector.OrderBy(p => p.Key.ToString()))
@@ -362,6 +363,7 @@ if (generateMasks || generateData)
             tasks.Add(File.WriteAllTextAsync($@"D:\Temp\Tree.txt", tree.ToString(i => char.ConvertFromUtf32(i))));
         }
 
+        if (generateSauce)
         {
             var nodeIndexes = new Dictionary<Tree<int, int>, int>();
             var nodes = tree.AllNodes().ToArray();
@@ -384,8 +386,6 @@ if (generateMasks || generateData)
 
                 tasks.Add(File.WriteAllTextAsync($@"D:\Temp\Tree compact.txt", sb.ToString()));
             }
-
-            if (generateSauce)
             {
                 var nodeData = nodes
                     .SelectMany(node => Enumerable.Range(0, accuracy).Select(i => nodeIndexes[node[i]]))
