@@ -14,6 +14,7 @@ bool generateMaskImages = false;
 bool generateMasks = false;
 bool generateData = generateMasks || true;
 bool useBaseMask = true;
+bool generateSauce = false;
 
 const int accuracy = 14; // Must be <= the number of pixels in the smallest mask
 const int noMasks = 10;
@@ -384,6 +385,7 @@ if (generateMasks || generateData)
                 tasks.Add(File.WriteAllTextAsync($@"D:\Temp\Tree compact.txt", sb.ToString()));
             }
 
+            if (generateSauce)
             {
                 var nodeData = nodes
                     .SelectMany(node => Enumerable.Range(0, accuracy).Select(i => nodeIndexes[node[i]]))
@@ -523,6 +525,8 @@ if (generateMasks || generateData)
                 }
             }
         }
+
+        if (generateSauce)
         {
             var nodeIndexes = new Dictionary<Tree<int, int>, int>();
             var nodes = tree.AllNodes().ToArray();
