@@ -253,6 +253,29 @@ if (generateMasks || generateData)
 
     if(generateData)
     {
+
+        {
+            var size = 256;
+            var newFontImage = new Image<Rgba32>(size, size);
+            var codepoints2 = characterImagesByCodepoint.Keys.Order().ToList();
+            {
+                var images = codepoints2.Select(codepoint => characterImagesByCodepoint[codepoint]).ToList();
+                for (int i = 0; i < images.Count; i++)
+                {
+                    var pos = (i + 1) * 8;
+                    var x = pos % size;
+                    var y = pos / size * 8;
+                    newFontImage.Mutate(c => c.DrawImage(images[i], new Point(x, y), 1f));
+                }
+            }
+            tasks.Add(newFontImage.SaveAs1BitPngAsync($@"D:\Temp\compressedfont full.png"));
+            var codePointString = string.Join(", ", codepoints2.Prepend(0).Select((c, i) => "\"" + Char.ConvertFromUtf32(c) + "\":" + i));
+            File.WriteAllText($@"D:\Temp\codepoints full.txt", "const codepointData = {" + codePointString + "};");
+            var codePointString2 = string.Join("", codepoints2.Prepend(0).Select(Char.ConvertFromUtf32));
+            codePointString2 = codePointString2.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\0", "\\0");
+            File.WriteAllText($@"D:\Temp\codepoints full only.txt", "const codepointString = \"" + codePointString2 + "\";\r\n");
+
+        }
         Debug.Assert(masks != null);
         Debug.Assert(masks.Count == noMasks);
         var characterImagesByVector = new Dictionary<Fingerprint<int>, List<Image<Rgba32>>>();
@@ -497,25 +520,6 @@ if (generateMasks || generateData)
                         }
                     }
                     tasks.Add(newFontImage.SaveAs1BitPngAsync($@"D:\Temp\compressedfont.png"));
-                }
-
-                {
-                    var size = 256;
-                    var newFontImage = new Image<Rgba32>(size, size);
-                    var codepoints2 = characterImagesByCodepoint.Keys.Order().ToList();
-                    {
-                        var images = codepoints2.Select(codepoint => characterImagesByCodepoint[codepoint]).ToList();
-                        for (int i = 0; i < images.Count; i++)
-                        {
-                            var pos = (i + 1) * 8;
-                            var x = pos % size;
-                            var y = pos / size * 8;
-                            newFontImage.Mutate(c => c.DrawImage(images[i], new Point(x, y), 1f));
-                        }
-                    }
-                    tasks.Add(newFontImage.SaveAs1BitPngAsync($@"D:\Temp\compressedfont full.png"));
-                    codepoints2.Prepend(0).WriteToFile($@"D:\Temp\codepoints full.data");
-                    codepoints2.Prepend(0).Select((c, i)=> "\"" + Char.ConvertFromUtf32(c) + "\": " + i + ",").WriteToFile($@"D:\Temp\codepoints full2.data");
                 }
             }
         }
