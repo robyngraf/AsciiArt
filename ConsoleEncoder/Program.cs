@@ -692,7 +692,7 @@ if (generateMaskImages)
                                 count += sourceImageFrame[imageX + x, imageY + y].GetLinearBrightness();
 
                     var weight = GetScore(mask.Total, (int)MathF.Round(count));
-                    if (i == 0 && weight >= accuracy - accuracy / 2)
+                    if (i == 0 && weight < accuracy / 2)
                         flipImage = true;
                     if (flipImage)
                         weight = accuracy - 1 - weight;
