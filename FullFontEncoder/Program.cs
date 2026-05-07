@@ -40,9 +40,37 @@ Dictionary<int, Image<Rgba32>> characterImagesByCodepoint = LoadImages();
 
 Console.WriteLine("Indexing font");
 
+List<Rectangle> rects =
+    [
+        new(0, 0, 7, 8),
+        new(2, 2, 3, 4),
+        new(4, 4, 3, 4),
+        new(0, 4, 3, 4),
+        new(4, 0, 3, 4),
+        new(0, 0, 3, 4),
+    ];
+
 List<bool> GetSignature(ImageFrame<Rgba32> image, Point location)
 {
     List<bool> bits = [];
+
+    foreach (var rect in rects)
+    {
+        var count = rect.Width * rect.Height;
+        float brightness = 0;
+        for (int y = rect.Top; y < rect.Bottom; y++)
+        {
+            var y1 = y + location.Y;
+            for (int x = rect.Left; x < rect.Right; x++)
+            {
+                brightness += image[x + location.X, y1].GetLinearBrightness();
+            }
+        }
+
+        bool isWhite = brightness / count >= 0.5;
+        bits.Add(isWhite);
+    }
+
     for (int y = 0; y < 8; y++)
     {
         var y1 = y + location.Y;
@@ -66,7 +94,7 @@ Tree<string> GenerateCharacterIndex(IEnumerable<KeyValuePair<int, Image<Rgba32>>
         var bits = GetSignature(charImage.Frames[0], Point.Empty);
         var stringValue = char.ConvertFromUtf32(codepoint);
         tree.AddIfNotPresent(bits, stringValue);
-        //tree.AddIfNotPresent(bits.Select(b => !b), invertToken + stringValue);
+        tree.AddIfNotPresent(bits.Select(b => !b), invertToken + stringValue);
     }
     return tree;
 }
