@@ -2,20 +2,22 @@
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Formats.Gif;
-using SixLabors.ImageSharp.Formats.Png;
 using FullFontEncoder;
-using System.Collections;
+using System.Text;
+
+
+var filename = @"D:\Temp\moon_screen.jpg";
+var outputFilename = Path.ChangeExtension(filename, ".txt");
 
 const string invertToken = "​"; // zero-width space
 
 Console.WriteLine("Reading font");
 
-Dictionary<int, Image<Rgba32>> characterImagesByCodepoint = [];
-
+Dictionary<int, Image<Rgba32>> LoadImages()
 {
     using var fontImage = Image.Load<Rgba32>(@"apple font_0.png");
     var fontData = XDocument.Load(@"apple font.fnt");
+    var images = new Dictionary<int, Image<Rgba32>>();
 
     foreach (var node in fontData.Descendants("char"))
     {
@@ -29,16 +31,18 @@ Dictionary<int, Image<Rgba32>> characterImagesByCodepoint = [];
         if (width != 7 || height != 8) continue;
         var rect = new Rectangle(characterX, characterY, width, height);
         var charImage = fontImage.Clone(i => i.Crop(rect));
-        characterImagesByCodepoint.Add(codepoint, charImage);
+        images.Add(codepoint, charImage);
     }
+    return images;
 }
+
+Dictionary<int, Image<Rgba32>> characterImagesByCodepoint = LoadImages();
 
 Console.WriteLine("Indexing font");
 
-Tree<string> tree = new();
-
-void AddImagesToTree(IEnumerable<KeyValuePair<int, Image<Rgba32>>> images)
+Tree<string> GenerateCharacterIndex(IEnumerable<KeyValuePair<int, Image<Rgba32>>> images)
 {
+    var tree = new Tree<string>();
     foreach (var pair in images)
     {
         var codepoint = pair.Key;
@@ -56,10 +60,53 @@ void AddImagesToTree(IEnumerable<KeyValuePair<int, Image<Rgba32>>> images)
         }
         var stringValue = char.ConvertFromUtf32(codepoint);
         tree.AddIfNotPresent(bits, stringValue);
-        tree.AddIfNotPresent(bits.Select(b => !b), invertToken + stringValue);
+        //tree.AddIfNotPresent(bits.Select(b => !b), invertToken + stringValue);
     }
+    return tree;
 }
 
-AddImagesToTree(characterImagesByCodepoint.OrderBy(p => p.Key));
+var index = GenerateCharacterIndex(characterImagesByCodepoint.OrderBy(p => p.Key));
 
-var fred = "fred";
+Console.WriteLine("Processing image.");
+
+string[] GenerateAsciiFromFrame(ImageFrame<Rgba32> image, Tree<string> index)
+{
+    var lines = new string[image.Height / 8];
+    for (int imageY = 0; imageY < image.Height - 7; imageY += 8)
+    {
+        var line = new StringBuilder(image.Width / 7);
+        for (int imageX = 0; imageX < image.Width - 6; imageX += 7)
+        {
+            List<bool> bits = [];
+            for (int y = 0; y < 8; y++)
+            {
+                for (int x = 0; x < 7; x++)
+                {
+                    bool isWhite = image[imageX + x, imageY + y].GetLinearBrightness() >= 0.5;
+                    bits.Add(isWhite);
+                }
+            }
+            var character = index.GetSimilarTo(bits) ?? "?";
+            line.Append(character);
+        }
+        lines[imageY / 8] = line.ToString();
+    }
+    return lines;
+}
+
+string[] ProcessImage(string fileName, Tree<string> index)
+{
+    using var sourceImage = Image.Load<Rgba32>(filename);
+    string[][] frameLines = new string[sourceImage.Frames.Count][];
+    Parallel.ForEach(
+        sourceImage.Frames,
+        (ImageFrame<Rgba32> sourceImageFrame, ParallelLoopState _, long frameIndex) =>
+        {
+            var thisFrameLines = GenerateAsciiFromFrame(sourceImageFrame, index);
+            frameLines[frameIndex] = thisFrameLines;
+        }
+    );
+    return [.. frameLines.SelectMany(x => x)];
+}
+
+File.WriteAllLines(outputFilename, ProcessImage(filename, index));

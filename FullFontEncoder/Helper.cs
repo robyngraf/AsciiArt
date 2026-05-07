@@ -7,7 +7,7 @@ namespace FullFontEncoder
 {
     internal static class Helper
     {
-        public static float GetLinearBrightness(this Rgba32 color) => ((float)color.R + color.G + color.B) * color.A / (4.0f * 255f);
+        public static float GetLinearBrightness(this Rgba32 color) => ((float)color.R + color.G + color.B) * color.A / (3.0f * 255f * 255f);
 
     }
 }
