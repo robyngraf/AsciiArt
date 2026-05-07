@@ -40,6 +40,21 @@ Dictionary<int, Image<Rgba32>> characterImagesByCodepoint = LoadImages();
 
 Console.WriteLine("Indexing font");
 
+List<bool> GetSignature(ImageFrame<Rgba32> image, Point location)
+{
+    List<bool> bits = [];
+    for (int y = 0; y < 8; y++)
+    {
+        var y1 = y + location.Y;
+        for (int x = 0; x < 7; x++)
+        {
+            bool isWhite = image[x + location.X, y1].GetLinearBrightness() >= 0.5;
+            bits.Add(isWhite);
+        }
+    }
+    return bits;
+}
+
 Tree<string> GenerateCharacterIndex(IEnumerable<KeyValuePair<int, Image<Rgba32>>> images)
 {
     var tree = new Tree<string>();
@@ -48,16 +63,7 @@ Tree<string> GenerateCharacterIndex(IEnumerable<KeyValuePair<int, Image<Rgba32>>
         var codepoint = pair.Key;
         var charImage = pair.Value;
         var invertedImage = charImage.Clone(i => i.Invert());
-        List<bool> bits = [];
-
-        for (int y = 0; y < 8; y++)
-        {
-            for (int x = 0; x < 7; x++)
-            {
-                bool isWhite = charImage[x, y].GetLinearBrightness() >= 0.5;
-                bits.Add(isWhite);
-            }
-        }
+        var bits = GetSignature(charImage.Frames[0], Point.Empty);
         var stringValue = char.ConvertFromUtf32(codepoint);
         tree.AddIfNotPresent(bits, stringValue);
         //tree.AddIfNotPresent(bits.Select(b => !b), invertToken + stringValue);
@@ -77,15 +83,7 @@ string[] GenerateAsciiFromFrame(ImageFrame<Rgba32> image, Tree<string> index)
         var line = new StringBuilder(image.Width / 7);
         for (int imageX = 0; imageX < image.Width - 6; imageX += 7)
         {
-            List<bool> bits = [];
-            for (int y = 0; y < 8; y++)
-            {
-                for (int x = 0; x < 7; x++)
-                {
-                    bool isWhite = image[imageX + x, imageY + y].GetLinearBrightness() >= 0.5;
-                    bits.Add(isWhite);
-                }
-            }
+            var bits = GetSignature(image, new(imageX, imageY));
             var character = index.GetSimilarTo(bits) ?? "?";
             line.Append(character);
         }
