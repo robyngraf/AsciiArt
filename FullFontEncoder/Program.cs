@@ -1,12 +1,13 @@
-﻿using System.Xml.Linq;
+﻿using FullFontEncoder;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Formats.Gif;
 using SixLabors.ImageSharp.PixelFormats;
-using FullFontEncoder;
+using SixLabors.ImageSharp.Processing;
 using System.Text;
+using System.Xml.Linq;
 
 
-var filename = @"D:\Temp\moon_screen.jpg";
+var filename = @"D:\Temp\rick-roll2.gif";
 var outputFilename = Path.ChangeExtension(filename, ".txt");
 
 const string invertToken = "​"; // zero-width space
@@ -132,7 +133,28 @@ string[] ProcessImage(string fileName, Tree<string> index)
             frameLines[frameIndex] = thisFrameLines;
         }
     );
-    return [.. frameLines.SelectMany(x => x)];
+
+    var width = sourceImage.Width / 7 * 7;
+    var height = sourceImage.Height / 8 * 8;
+
+    var format = Image.DetectFormat(filename);
+    if (format is GifFormat)
+    {
+        var frameDelays = sourceImage.Frames.Select(f => f.Metadata.GetGifMetadata().FrameDelay * 10).ToArray();
+        for (int i = 0; i < sourceImage.Frames.Count; i++)
+        {
+            if (frameDelays[i] > 0)
+            {
+                frameLines[i] = ["Delay: " + frameDelays[0], .. frameLines[i]];
+            }
+        }
+    }
+    return ["Width: " + width, "Height: " + height , ..frameLines.SelectMany(f => f)];
 }
 
-File.WriteAllLines(outputFilename, ProcessImage(filename, index));
+var lines = ProcessImage(filename, index);
+
+Console.WriteLine("Writing txt file.");
+File.WriteAllLines(outputFilename, lines);
+
+Console.WriteLine("Done.");
