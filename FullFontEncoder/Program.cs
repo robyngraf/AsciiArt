@@ -7,7 +7,7 @@ using System.Text;
 using System.Xml.Linq;
 
 
-var filename = @"D:\Temp\rick-roll2.gif";
+var filename = @"D:\Temp\rick-roll5.gif";
 var outputFilename = Path.ChangeExtension(filename, ".txt");
 
 const string invertToken = "​"; // zero-width space
@@ -24,6 +24,7 @@ Dictionary<int, Image<Rgba32>> LoadImages()
     {
 #pragma warning disable CS8604 // Possible null reference argument.
         var codepoint = checked((int)node.Attribute("id"));
+        if (codepoint == 96) continue; // skip backtick, as it interferes with javascript
         var characterX = (int)node.Attribute("x");
         var characterY = (int)node.Attribute("y");
         var width = (int)node.Attribute("width");
@@ -134,8 +135,8 @@ string[] ProcessImage(string fileName, Tree<string> index)
         }
     );
 
-    var width = sourceImage.Width / 7 * 7;
-    var height = sourceImage.Height / 8 * 8;
+    var width = sourceImage.Width / 7;
+    var height = sourceImage.Height / 8;
 
     var format = Image.DetectFormat(filename);
     if (format is GifFormat)
