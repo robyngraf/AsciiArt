@@ -3,12 +3,14 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Gif;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
+using System.IO.Compression;
 using System.Text;
 using System.Xml.Linq;
 
 
-var filename = @"D:\Temp\rick-roll5.gif";
+var filename = @"D:\Temp\rick-roll4.gif";
 var outputFilename = Path.ChangeExtension(filename, ".txt");
+var encodedFilename = Path.ChangeExtension(filename, ".encoded.txt");
 
 const string invertToken = "​"; // zero-width space
 
@@ -24,7 +26,6 @@ Dictionary<int, Image<Rgba32>> LoadImages()
     {
 #pragma warning disable CS8604 // Possible null reference argument.
         var codepoint = checked((int)node.Attribute("id"));
-        if (codepoint == 96) continue; // skip backtick, as it interferes with javascript
         var characterX = (int)node.Attribute("x");
         var characterY = (int)node.Attribute("y");
         var width = (int)node.Attribute("width");
@@ -34,6 +35,7 @@ Dictionary<int, Image<Rgba32>> LoadImages()
         var rect = new Rectangle(characterX, characterY, width, height);
         var charImage = fontImage.Clone(i => i.Crop(rect));
         images.Add(codepoint, charImage);
+        if (images.Count > 255) break;
     }
     return images;
 }
@@ -157,5 +159,47 @@ var lines = ProcessImage(filename, index);
 
 Console.WriteLine("Writing txt file.");
 File.WriteAllLines(outputFilename, lines);
+
+Console.WriteLine("Testing encoding/decoding.");
+const string testString = "Hello World";
+Console.WriteLine(DecompressBase64GZip(GZipAndBase64Encode(testString)) == testString ? "Test passed." : "Test failed.");
+Console.WriteLine(DecompressBase64GZip(GZipAndBase64Encode(testString)));
+
+Console.WriteLine("Encoding file.");
+string GZipAndBase64Encode(string s)
+{
+    // 1. Read the data into a byte array
+    var bytes = Encoding.UTF8.GetBytes(s);
+
+    using var outputStream = new MemoryStream();
+    // 2. Compress the data using GZip
+    using (GZipStream gZipStream = new(outputStream, CompressionMode.Compress))
+    {
+        gZipStream.Write(bytes, 0, bytes.Length);
+    }
+
+    // 3. Convert compressed bytes to Base64 string
+    byte[] compressedBytes = outputStream.ToArray();
+    return Convert.ToBase64String(compressedBytes);
+}
+
+string DecompressBase64GZip(string base64String)
+{
+    // 1. Decode Base64 to byte array
+    byte[] gZipBuffer = Convert.FromBase64String(base64String);
+
+    using var memoryStream = new MemoryStream(gZipBuffer);
+    using var gZipStream = new GZipStream(memoryStream, CompressionMode.Decompress);
+    using var outputStream = new MemoryStream();
+    // 2. Decompress GZip stream into another memory stream
+    gZipStream.CopyTo(outputStream);
+    byte[] outputBytes = outputStream.ToArray();
+
+    // 3. Convert decompressed bytes back to UTF8 string
+    var result = Encoding.UTF8.GetString(outputBytes);
+    return result;
+}
+
+File.WriteAllText(encodedFilename, GZipAndBase64Encode(string.Join('\n', lines)));
 
 Console.WriteLine("Done.");
