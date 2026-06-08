@@ -141,8 +141,8 @@ if (generateFontMap)
 {
     var size = 256;
     var newFontImage = new Image<Rgba32>(size, size);
-    var codepoints2 = characterImagesByCodepoint.Keys.Order().ToList();
-    var images = codepoints2.Select(codepoint => characterImagesByCodepoint[codepoint]).ToList();
+    var codepoints = characterImagesByCodepoint.Keys.Order().ToList();
+    var images = codepoints.Select(codepoint => characterImagesByCodepoint[codepoint]).ToList();
     for (int i = 0; i < images.Count; i++)
     {
         var pos = (i + 1) * 8;
@@ -151,7 +151,7 @@ if (generateFontMap)
         newFontImage.Mutate(c => c.DrawImage(images[i], new Point(x, y), 1f));
     }
     SaveAs1BitPng(newFontImage, $@"F:\Metagame\dev\compressedfont full.png");
-    var codePointString = string.Join("", codepoints2.Prepend(0).Select(char.ConvertFromUtf32));
+    var codePointString = string.Join("", codepoints.Prepend(0).Select(char.ConvertFromUtf32));
     codePointString = codePointString.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\0", "\\0");
     File.WriteAllText($@"F:\Metagame\dev\font codepoints code.txt", "const codepointString = \"" + codePointString + "\";\r\n");
 }
@@ -348,12 +348,8 @@ static void RenderAsciiLinesToImage(string[] lines, Dictionary<int, Image<Rgba32
             i += consumed;
 
             // lookup glyph by codepoint
-            Image<Rgba32> glyph;
-            if (!characterImagesByCodepoint.TryGetValue(rune.Value, out var found))
-            {
-                found = characterImagesByCodepoint[0];
-            }
-            glyph = found;
+            if (!characterImagesByCodepoint.TryGetValue(rune.Value, out var glyph))
+                throw new Exception($"Character {rune} at codepoint {rune.Value} not found");
 
             bool glyphWasCloned = false;
             if (invert)
