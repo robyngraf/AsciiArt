@@ -51,6 +51,18 @@
             return currentNode.Value;
         }
 
+        public IEnumerable<T> GetAllValues() => Tree<T>.GetAllValuesFromNode(Root);
+
+        private static IEnumerable<T> GetAllValuesFromNode(Node? node)
+        {
+            if (node is null) yield break;
+            if (node.HasValue) yield return node.Value!;
+            foreach (var value in Tree<T>.GetAllValuesFromNode(node.Left))
+                yield return value;
+            foreach (var value in Tree<T>.GetAllValuesFromNode(node.Right))
+                yield return value;
+        }
+
         public int Count { get; private set; } = 0;
 
         private readonly Node Root = new();
