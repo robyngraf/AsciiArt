@@ -11,14 +11,15 @@ using System.Xml.Linq;
 bool outlineEdges = false;
 bool outputRenderedAsciiArt = true;
 bool randomNoise = false;
-bool resizeIfTooBig = false;
+bool resizeIfTooBig = true;
+bool cropWhenResizing = false;
 bool generate = true;
 bool limitedCharacterSet = generate & false;
 bool useOnlyColourBlocks = true;
 bool addExtraColourBlocks = true;
 bool generateFontMap = true;
 
-var filename = @"C:\Users\Robyn\Downloads\doom uncolourized.gif";
+var filename = @"C:\Users\Robyn\Downloads\doom_1993.webp";
 var outputFilename = Path.ChangeExtension(filename, ".txt");
 var encodedFilename = Path.ChangeExtension(filename, ".encoded.txt");
 
@@ -63,31 +64,59 @@ Dictionary<int, Image<Rgba32>> LoadImages()
     if (addExtraColourBlocks)
     {
         var ethiopicCodepointBlockStart = 0x1200;
-        for (int i = 0; i < 32; i++)
+        for (int k = 0; k < 8; k++)
         {
-            Image<Rgba32> newImage = new(7, 8);
-            for (int y = 0; y < 8; y++)
+            for (int i = 0; i < 32; i++)
             {
-                for (int x = 0; x < 7; x++)
+                Image<Rgba32> newImage = new(7, 8);
+                if (k == 7)
                 {
-                    var j = (x + 3 * y) % 6;
-                    bool isWhite = (i & (1 << j)) != 0;
-                    newImage[x, y] = isWhite ? new Rgba32(255, 255, 255) : new Rgba32(0, 0, 0);
+                    for (int y = 0; y < 8; y++)
+                    {
+                        for (int x = 0; x < 7; x++)
+                        {
+                            var j = (x + 3 * y) % 6;
+                            bool isWhite = (i & (1 << j)) != 0;
+                            newImage[x, y] = isWhite ? new Rgba32(255, 255, 255) : new Rgba32(0, 0, 0);
+                        }
+                    }
+
                 }
+                else
+                {
+                    for (int y = 0; y < 4; y++)
+                    {
+                        for (int x = 0; x < 7; x++)
+                        {
+                            var j = (x + 3 * y) % 6;
+                            bool isWhite = (i & (1 << j)) != 0;
+                            newImage[x, y] = isWhite ? new Rgba32(255, 255, 255) : new Rgba32(0, 0, 0);
+                        }
+                    }
+                    for (int y = 4; y < 8; y++)
+                    {
+                        for (int x = 0; x < 7; x++)
+                        {
+                            var j = (x + 3 * y) % 6;
+                            bool isWhite = (k & (1 << j)) != 0;
+                            newImage[x, y] = isWhite ? new Rgba32(255, 255, 255) : new Rgba32(0, 0, 0);
+                        }
+                    }
+                }
+                var bits = GetSignature(newImage.Frames[0], new(0, 0));
+                var signature = string.Join("", bits.Select(b => b ? "1" : "0"));
+                Image<Rgba32> charImage;
+                if (imagesBySignature.TryGetValue(signature, out Image<Rgba32>? value))
+                {
+                    charImage = value;
+                }
+                else
+                {
+                    charImage = newImage;
+                    imagesBySignature[signature] = charImage;
+                }
+                imagesByCodePoint.Add(ethiopicCodepointBlockStart + i + 32 * k, charImage);
             }
-            var bits = GetSignature(newImage.Frames[0], new(0, 0));
-            var signature = string.Join("", bits.Select(b => b ? "1" : "0"));
-            Image<Rgba32> charImage;
-            if (imagesBySignature.TryGetValue(signature, out Image<Rgba32>? value))
-            {
-                charImage = value;
-            }
-            else
-            {
-                charImage = newImage;
-                imagesBySignature[signature] = charImage;
-            }
-            imagesByCodePoint.Add(ethiopicCodepointBlockStart + i, charImage);
         }
     }
     return imagesByCodePoint;
@@ -240,15 +269,18 @@ string[] ProcessImage(string fileName, Tree<string> index)
     using var sourceImage = Image.Load<Rgba32>(filename);
     if (resizeIfTooBig && (sourceImage.Width > 420 || sourceImage.Height > 672))
     {
-        var newWidth = Math.Min(sourceImage.Width * 672 / sourceImage.Height, 420);
-        var newHeight = Math.Min(sourceImage.Height * 420 / sourceImage.Width, 672);
-        Console.WriteLine($"Resizing image from {sourceImage.Width}x{sourceImage.Height} to {newWidth}x{newHeight}.");
-        sourceImage.Mutate(i => i.Resize(new ResizeOptions
+        if (cropWhenResizing)
         {
-            Mode = ResizeMode.Stretch,
-            Size = new Size(newWidth, newHeight),
-            Sampler = KnownResamplers.Hermite
-        }));
+            sourceImage.Mutate(i => i.Crop(new Rectangle(0, 0, Math.Min(420, sourceImage.Width), Math.Min(672, sourceImage.Height))));
+        }
+        else
+        {
+            sourceImage.Mutate(i => i.Resize(new ResizeOptions
+            {
+                Mode = ResizeMode.Max,
+                Size = new Size(420, 672)
+            }));
+        }
     }
     if (outlineEdges)
     {
