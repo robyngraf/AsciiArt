@@ -12,11 +12,13 @@ bool outlineEdges = false;
 bool outputRenderedAsciiArt = true;
 bool randomNoise = false;
 bool resizeIfTooBig = false;
-bool generate = false;
+bool generate = true;
 bool limitedCharacterSet = generate & false;
+bool useOnlyColourBlocks = true;
+bool addExtraColourBlocks = true;
 bool generateFontMap = true;
 
-var filename = @"F:\Metagame\dev\TTtennis.png";
+var filename = @"C:\Users\Robyn\Downloads\doom uncolourized.gif";
 var outputFilename = Path.ChangeExtension(filename, ".txt");
 var encodedFilename = Path.ChangeExtension(filename, ".encoded.txt");
 
@@ -56,6 +58,37 @@ Dictionary<int, Image<Rgba32>> LoadImages()
         }
         imagesByCodePoint.Add(codepoint, charImage);
         if (limitedCharacterSet && imagesByCodePoint.Count > 255) break;
+    }
+
+    if (addExtraColourBlocks)
+    {
+        var ethiopicCodepointBlockStart = 0x1200;
+        for (int i = 0; i < 32; i++)
+        {
+            Image<Rgba32> newImage = new(7, 8);
+            for (int y = 0; y < 8; y++)
+            {
+                for (int x = 0; x < 7; x++)
+                {
+                    var j = (x + 3 * y) % 6;
+                    bool isWhite = (i & (1 << j)) != 0;
+                    newImage[x, y] = isWhite ? new Rgba32(255, 255, 255) : new Rgba32(0, 0, 0);
+                }
+            }
+            var bits = GetSignature(newImage.Frames[0], new(0, 0));
+            var signature = string.Join("", bits.Select(b => b ? "1" : "0"));
+            Image<Rgba32> charImage;
+            if (imagesBySignature.TryGetValue(signature, out Image<Rgba32>? value))
+            {
+                charImage = value;
+            }
+            else
+            {
+                charImage = newImage;
+                imagesBySignature[signature] = charImage;
+            }
+            imagesByCodePoint.Add(ethiopicCodepointBlockStart + i, charImage);
+        }
     }
     return imagesByCodePoint;
 }
@@ -113,6 +146,13 @@ Tree<string> GenerateCharacterIndex(IEnumerable<KeyValuePair<int, Image<Rgba32>>
     foreach (var pair in images)
     {
         var codepoint = pair.Key;
+        if (useOnlyColourBlocks)
+        {
+            if (codepoint < 0x1200 || codepoint > 0x137F)
+            {
+                continue;
+            }
+        }
         var charImage = pair.Value;
         var invertedImage = charImage.Clone(i => i.Invert());
         var bits = GetSignature(charImage.Frames[0], Point.Empty);
@@ -141,8 +181,15 @@ if (generateFontMap)
 {
     var size = 256;
     var newFontImage = new Image<Rgba32>(size, size);
-    var codepoints = characterImagesByCodepoint.Keys.Order().ToList();
-    var images = codepoints.Select(codepoint => characterImagesByCodepoint[codepoint]).ToList();
+    var pairs = characterImagesByCodepoint.OrderBy(p => p.Key).ToList();
+    Dictionary<Image, List<int>> codepointsByImage = [];
+    foreach (var pair in pairs)
+    {
+        if (!codepointsByImage.TryGetValue(pair.Value, out var codepointList)) codepointsByImage[pair.Value] = codepointList = [];
+        codepointList.Add(pair.Key);
+    }
+    var uniqueCodepoints = codepointsByImage.Select(p => p.Value[0]);
+    var images = codepointsByImage.Select(p => p.Key).ToList();
     for (int i = 0; i < images.Count; i++)
     {
         var pos = (i + 1) * 8;
@@ -151,9 +198,24 @@ if (generateFontMap)
         newFontImage.Mutate(c => c.DrawImage(images[i], new Point(x, y), 1f));
     }
     SaveAs1BitPng(newFontImage, $@"F:\Metagame\dev\compressedfont full.png");
-    var codePointString = string.Join("", codepoints.Prepend(0).Select(char.ConvertFromUtf32));
+    var codePointString = string.Join("", uniqueCodepoints.Prepend(0).Select(char.ConvertFromUtf32));
     codePointString = codePointString.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\0", "\\0");
-    File.WriteAllText($@"F:\Metagame\dev\font codepoints code.txt", "const codepointString = \"" + codePointString + "\";\r\n");
+
+    StringBuilder sb = new();
+    foreach (var list in codepointsByImage.Values)
+    {
+        if (list.Count < 2) continue;
+        var uniqueChar = char.ConvertFromUtf32(list[0]);
+        sb.Append(uniqueChar);
+        foreach (var nonUniqueChar in list.Skip(1).Select(char.ConvertFromUtf32))
+        {
+            sb.Append(nonUniqueChar);
+        }
+    }
+
+    var codePointString2 = sb.ToString().Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\0", "\\0");
+
+    File.WriteAllText($@"F:\Metagame\dev\font codepoints code.txt", "const uniqueCodepointString = \"" + codePointString + "\";\r\n" + "const nonUniqueCodepointString = \"" + codePointString2 + "\";\r\n");
 }
 
 string[] GenerateAsciiFromFrame(ImageFrame<Rgba32> image, Tree<string> index)
