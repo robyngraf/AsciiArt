@@ -12,10 +12,11 @@ bool outlineEdges = false;
 bool outputRenderedAsciiArt = true;
 bool randomNoise = false;
 bool resizeIfTooBig = true;
-bool cropWhenResizing = false;
+bool cropWhenResizing = true;
 bool generate = true;
 bool limitedCharacterSet = generate & false;
 bool useOnlyColourBlocks = true;
+bool renderColourBlocks = true;
 bool addExtraColourBlocks = true;
 bool generateFontMap = true;
 
@@ -64,59 +65,31 @@ Dictionary<int, Image<Rgba32>> LoadImages()
     if (addExtraColourBlocks)
     {
         var ethiopicCodepointBlockStart = 0x1200;
-        for (int k = 0; k < 8; k++)
+        for (int i = 0; i < 32; i++)
         {
-            for (int i = 0; i < 32; i++)
+            Image<Rgba32> newImage = new(7, 8);
+            for (int y = 0; y < 8; y++)
             {
-                Image<Rgba32> newImage = new(7, 8);
-                if (k == 7)
+                for (int x = 0; x < 7; x++)
                 {
-                    for (int y = 0; y < 8; y++)
-                    {
-                        for (int x = 0; x < 7; x++)
-                        {
-                            var j = (x + 3 * y) % 6;
-                            bool isWhite = (i & (1 << j)) != 0;
-                            newImage[x, y] = isWhite ? new Rgba32(255, 255, 255) : new Rgba32(0, 0, 0);
-                        }
-                    }
-
+                    var j = (x % 3 + 3 * (y% 2));
+                    bool isWhite = (i & (1 << j)) != 0;
+                    newImage[x, y] = isWhite ? new Rgba32(255, 255, 255) : new Rgba32(0, 0, 0);
                 }
-                else
-                {
-                    for (int y = 0; y < 4; y++)
-                    {
-                        for (int x = 0; x < 7; x++)
-                        {
-                            var j = (x + 3 * y) % 6;
-                            bool isWhite = (i & (1 << j)) != 0;
-                            newImage[x, y] = isWhite ? new Rgba32(255, 255, 255) : new Rgba32(0, 0, 0);
-                        }
-                    }
-                    for (int y = 4; y < 8; y++)
-                    {
-                        for (int x = 0; x < 7; x++)
-                        {
-                            var j = (x + 3 * y) % 6;
-                            bool isWhite = (k & (1 << j)) != 0;
-                            newImage[x, y] = isWhite ? new Rgba32(255, 255, 255) : new Rgba32(0, 0, 0);
-                        }
-                    }
-                }
-                var bits = GetSignature(newImage.Frames[0], new(0, 0));
-                var signature = string.Join("", bits.Select(b => b ? "1" : "0"));
-                Image<Rgba32> charImage;
-                if (imagesBySignature.TryGetValue(signature, out Image<Rgba32>? value))
-                {
-                    charImage = value;
-                }
-                else
-                {
-                    charImage = newImage;
-                    imagesBySignature[signature] = charImage;
-                }
-                imagesByCodePoint.Add(ethiopicCodepointBlockStart + i + 32 * k, charImage);
             }
+            var bits = GetSignature(newImage.Frames[0], new(0, 0));
+            var signature = string.Join("", bits.Select(b => b ? "1" : "0"));
+            Image<Rgba32> charImage;
+            if (imagesBySignature.TryGetValue(signature, out Image<Rgba32>? value))
+            {
+                charImage = value;
+            }
+            else
+            {
+                charImage = newImage;
+                imagesBySignature[signature] = charImage;
+            }
+            imagesByCodePoint.Add(ethiopicCodepointBlockStart + i, charImage);
         }
     }
     return imagesByCodePoint;
@@ -141,21 +114,24 @@ List<bool> GetSignature(ImageFrame<Rgba32> image, Point location, bool addNoise 
     List<bool> bits = [];
     var r = addNoise ? new Random() : null;
 
-    foreach (var rect in rects)
+    if (!useOnlyColourBlocks)
     {
-        var count = rect.Width * rect.Height;
-        float brightness = 0;
-        for (int y = rect.Top; y < rect.Bottom; y++)
+        foreach (var rect in rects)
         {
-            var y1 = y + location.Y;
-            for (int x = rect.Left; x < rect.Right; x++)
+            var count = rect.Width * rect.Height;
+            float brightness = 0;
+            for (int y = rect.Top; y < rect.Bottom; y++)
             {
-                brightness += image[x + location.X, y1].GetLinearBrightness();
+                var y1 = y + location.Y;
+                for (int x = rect.Left; x < rect.Right; x++)
+                {
+                    brightness += image[x + location.X, y1].GetLinearBrightness();
+                }
             }
-        }
 
-        bool isWhite = brightness / count >= (addNoise ? (r!.NextSingle() * 0.8 + 0.1) : 0.5);
-        bits.Add(isWhite);
+            bool isWhite = brightness / count >= (addNoise ? (r!.NextSingle() * 0.8 + 0.1) : 0.5);
+            bits.Add(isWhite);
+        }
     }
     for (int y = 0; y < 8; y++)
     {
@@ -264,6 +240,136 @@ string[] GenerateAsciiFromFrame(ImageFrame<Rgba32> image, Tree<string> index)
     return lines;
 }
 
+void B64Dither(ImageFrame<Rgba32> image)
+{
+    for (int y = 0; y < image.Height; y++)
+    {
+        for (int x = 0; x < image.Width; x++)
+        {
+            var pixel = image[x, y];
+            B64Colour colour = mostSimilarB64Colour(pixel);
+            bool[] bits;
+            if (y % 2 == 0)
+            {
+                bits = [colour.R, colour.G, colour.B];
+            }
+            else
+            {
+                bits = [colour.C, colour.M, colour.Y];
+            }
+            bool bit = bits[x % 3];
+            image[x, y] = bit ? new Rgba32(255, 255, 255) : new Rgba32(0, 0, 0);
+        }
+    }
+}
+
+(int h, int s, int l) RgbToHSL(Rgba32 color)
+{
+    float r = color.R / 255f;
+    float g = color.G / 255f;
+    float b = color.B / 255f;
+    float max = MathF.Max(r, MathF.Max(g, b));
+    float min = MathF.Min(r, MathF.Min(g, b));
+    float h = 0, s = 0, l = (max + min) / 2;
+    if (max != min)
+    {
+        s = l < 0.5f ? (max - min) / (max + min) : (max - min) / (2.0f - max - min);
+        if (max == r) h = (g - b) / (max - min);
+        else if (max == g) h = 2.0f + (b - r) / (max - min);
+        else h = 4.0f + (r - g) / (max - min);
+    }
+    h *= 60;
+    if (h < 0) h += 360;
+    return ((int)h, (int)(s * 100), (int)(l * 100));
+}
+
+B64Colour[] GetColours()
+{
+    B64Colour[] colours = new B64Colour[64];
+    for (int index = 0; index < 64; index++)
+    {
+        var r = index & 1;
+        var g = index >>> 1 & 1;
+        var b = index >>> 2 & 1;
+        var c = index >>> 3 & 1;
+        var m = index >>> 4 & 1;
+        var y = index >>> 5 & 1;
+        byte LinearToSrgbChannel(double x)
+        {
+            x = x / 255;
+            if (x <= 0.0031308)
+            {
+                x = x * 12.92;
+            }
+            else
+            {
+                x = 1.055 * Math.Pow(x, 1.0 / 2.4) - 0.055;
+            }
+            return (byte)Math.Floor(Math.Max(0, Math.Min(255, x * 255)));
+        }
+        Rgba32 colourValue = new(
+            LinearToSrgbChannel(127.5f * r + 63.75f * m + 63.75f * y),
+            LinearToSrgbChannel(127.5f * g + 63.75f * y + 63.75f * c),
+            LinearToSrgbChannel(127.5f * b + 63.75f * c + 63.75f * m)
+        );
+        var (h, s, l) = RgbToHSL(colourValue);
+        colours[index] = new B64Colour
+        {
+            R = r == 1,
+            G = g == 1,
+            B = b == 1,
+            C = c == 1,
+            M = m == 1,
+            Y = y == 1,
+            ColourValue = colourValue,
+            H = h,
+            S = s,
+            L = l,
+        };
+    }
+    return colours;
+}
+
+var allB64Colours = GetColours();
+
+List<B64Colour> FindUniqueColours()
+{
+    List<B64Colour> uniqueColours = [];
+    for (int i = allB64Colours.Length - 1; i >= 0; i--)
+    {
+        var colour = allB64Colours[i];
+        bool isUnique = !uniqueColours.Contains(colour);
+        if (isUnique) uniqueColours.Add(colour);
+    }
+    return uniqueColours;
+}
+
+List<B64Colour> uniqueB64Colours = FindUniqueColours();
+
+// Find B64colour with closest matching HSL values to the input colour
+B64Colour mostSimilarB64Colour(Rgba32 colour)
+{
+    var (h, s, l) = RgbToHSL(colour);
+    B64Colour? bestMatch = null;
+    int bestDistance = int.MaxValue;
+    foreach (var b64Colour in uniqueB64Colours)
+    {
+        int dh = Math.Min(Math.Abs(b64Colour.H - h), 360 - Math.Abs(b64Colour.H - h));
+        int ds = Math.Abs(b64Colour.S - s);
+        int dl = Math.Abs(b64Colour.L - l);
+        int dr = Math.Abs(b64Colour.ColourValue.R - colour.R);
+        int dg = Math.Abs(b64Colour.ColourValue.G - colour.G);
+        int db = Math.Abs(b64Colour.ColourValue.B - colour.B);
+        int distance = dh * dh + ds * ds + dl * dl;// + dr * dr + dg * dg + db * db;
+        if (distance < bestDistance)
+        {
+            bestDistance = distance;
+            bestMatch = b64Colour;
+        }
+    }
+    return bestMatch!.Value;
+}
+
 string[] ProcessImage(string fileName, Tree<string> index)
 {
     using var sourceImage = Image.Load<Rgba32>(filename);
@@ -271,7 +377,17 @@ string[] ProcessImage(string fileName, Tree<string> index)
     {
         if (cropWhenResizing)
         {
-            sourceImage.Mutate(i => i.Crop(new Rectangle(0, 0, Math.Min(420, sourceImage.Width), Math.Min(672, sourceImage.Height))));
+            sourceImage.Mutate(i => i.Resize(new ResizeOptions
+            {
+                Mode = ResizeMode.Min,
+                Size = new Size(420, 672)
+            }));
+            sourceImage.Mutate(i => i.Resize(new ResizeOptions
+            {
+                Mode = ResizeMode.Crop,
+                Size = new Size(420, 672),
+                Position = AnchorPositionMode.Center
+            }));
         }
         else
         {
@@ -292,6 +408,18 @@ string[] ProcessImage(string fileName, Tree<string> index)
             ColorBlendingMode = PixelColorBlendingMode.Normal,
             BlendPercentage = 1
         }));
+    }
+    if (renderColourBlocks)
+    {
+        Console.WriteLine("Dithering.");
+        Parallel.ForEach(
+            sourceImage.Frames,
+            (ImageFrame<Rgba32> sourceImageFrame, ParallelLoopState _, long frameIndex) =>
+            {
+                B64Dither(sourceImageFrame);
+            }
+        );
+        sourceImage.Save(Path.ChangeExtension(filename, "dither" + Path.GetExtension(fileName)));
     }
     string[][] frameLines = new string[sourceImage.Frames.Count][];
     Parallel.ForEach(
@@ -466,3 +594,31 @@ static void RenderAsciiLinesToImage(string[] lines, Dictionary<int, Image<Rgba32
 }
 
 Console.WriteLine("Done.");
+
+
+struct B64Colour
+{
+    public bool R;
+    public bool G;
+    public bool B;
+    public bool C;
+    public bool M;
+    public bool Y;
+    public int H;
+    public int S;
+    public int L;
+    public Rgba32 ColourValue;
+
+    public override readonly bool Equals(object? obj)
+    {
+        if (obj == null) return false;
+        if (!obj.GetType().IsAssignableTo(typeof(B64Colour))) return false;
+        var otherColour = (B64Colour)obj;
+        return ColourValue.Equals(otherColour.ColourValue);
+    }
+
+    public override int GetHashCode()
+    {
+        throw new NotImplementedException();
+    }
+}
